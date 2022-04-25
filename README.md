@@ -13,3 +13,5 @@
 - 路由分组
 ## lesson6-parameter_path
 - 获取uri参数
+## lesson7-parameter_query
+- query string arry map
