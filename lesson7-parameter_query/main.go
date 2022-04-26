@@ -5,10 +5,13 @@ import "github.com/gin-gonic/gin"
 func main() {
 	r := gin.Default()
 	// query string
+	// http://127.0.0.1:8080/welcome?firstname=mz&lastname=yz
 	r.GET("welcome", welcomeHandler)
 	// query array
+	// http://127.0.0.1:8080/array?ids=hello,1,2,3,4,5,6
 	r.GET("array", arrayHandler)
 	// query map
+	// http://127.0.0.1:8080/map?user[name]=mz&user[age]=18
 	r.GET("map", mapHandler)
 	err := r.Run()
 	if err != nil {
