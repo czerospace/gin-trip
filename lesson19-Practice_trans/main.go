@@ -1,7 +1,13 @@
 package main
 
 import (
+	"fmt"
 	"github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin/binding"
+	"github.com/go-playground/locales/zh"
+	ut "github.com/go-playground/universal-translator"
+	"github.com/go-playground/validator/v10"
+	zh_translations "github.com/go-playground/validator/v10/translations/zh"
 )
 
 type LoginForm struct {
@@ -18,7 +24,13 @@ type RegisterForm struct {
 	Email    string `json:"email" binding:"required,email"`
 }
 
+var trans ut.Translator
+
 func main() {
+	if err := InitializaTrans(); err != nil {
+		fmt.Println(err.Error())
+		panic(err)
+	}
 	r := gin.Default()
 	// 登陆
 	r.POST("login", loginHandler)
@@ -34,10 +46,21 @@ func main() {
 func registerHandler(c *gin.Context) {
 	var r RegisterForm
 	if err := c.ShouldBindJSON(&r); err != nil {
+		// 判断是不是 validator 错误
+		err, ok := err.(validator.ValidationErrors)
+		// 如果不是 validator 错误，返回 注册失败，请检查参数
+		if !ok {
+			c.JSON(200, gin.H{
+				"code": 40010,
+				"msg":  "注册失败，请检查参数",
+				"err":  err.Error(),
+			})
+			return
+		}
+		// 如果是 validator 错误，翻译成中文
 		c.JSON(200, gin.H{
-			"code": 40002,
-			"msg":  "注册失败，请检查参数",
-			"err":  err.Error(),
+			"code": 40004,
+			"err":  err.Translate(trans),
 		})
 		return
 	}
@@ -65,4 +88,17 @@ func loginHandler(c *gin.Context) {
 		"msg":  "success",
 		"data": l.UserName,
 	})
+}
+
+// InitializaTrans 翻译函数
+func InitializaTrans() (err error) {
+	// 修改 gin 框架 validator 引擎属性
+	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
+		zh := zh.New()
+		uni := ut.New(zh, zh)
+		trans, _ = uni.GetTranslator("zh")
+		err = zh_translations.RegisterDefaultTranslations(v, trans)
+		return
+	}
+	return
 }
