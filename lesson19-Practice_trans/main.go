@@ -8,12 +8,14 @@ import (
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
 	zh_translations "github.com/go-playground/validator/v10/translations/zh"
+	"reflect"
+	"strings"
 )
 
 type LoginForm struct {
 	UserName   string `json:"username" binding:"required,min=3,max=7"`
 	PassWord   string `json:"password" binding:"required,len=8"`
-	RePassword string `json:"re_password" binding:"required,len=8"`
+	RePassword string `json:"re_password" binding:"required,len=8,eqfield=PassWord"`
 }
 
 type RegisterForm struct {
@@ -52,7 +54,7 @@ func registerHandler(c *gin.Context) {
 		if !ok {
 			c.JSON(200, gin.H{
 				"code": 40010,
-				"msg":  "注册失败，请检查参数",
+				"msg":  "注册失败",
 				"err":  err.Error(),
 			})
 			return
@@ -60,7 +62,8 @@ func registerHandler(c *gin.Context) {
 		// 如果是 validator 错误，翻译成中文
 		c.JSON(200, gin.H{
 			"code": 40004,
-			"err":  err.Translate(trans),
+			"msg":  "注册失败，请检查参数",
+			"err":  removeTopStruct(err.Translate(trans)),
 		})
 		return
 	}
@@ -76,10 +79,22 @@ func registerHandler(c *gin.Context) {
 func loginHandler(c *gin.Context) {
 	var l LoginForm
 	if err := c.ShouldBindJSON(&l); err != nil {
+		// 判断是不是 validator 错误
+		err, ok := err.(validator.ValidationErrors)
+		// 如果不是 validator 错误，返回 注册失败，请检查参数
+		if !ok {
+			c.JSON(200, gin.H{
+				"code": 40010,
+				"msg":  "登陆失败",
+				"err":  err.Error(),
+			})
+			return
+		}
+		// 如果是 validator 错误，翻译成中文
 		c.JSON(200, gin.H{
-			"code": 40001,
-			"err":  err.Error(),
+			"code": 40004,
 			"msg":  "登陆失败，请检查参数",
+			"err":  removeTopStruct(err.Translate(trans)),
 		})
 		return
 	}
@@ -94,6 +109,11 @@ func loginHandler(c *gin.Context) {
 func InitializaTrans() (err error) {
 	// 修改 gin 框架 validator 引擎属性
 	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
+		v.RegisterTagNameFunc(func(fld reflect.StructField) string {
+			// 拿结构体中 UserName string `json:"username" binding:"required,min=3,max=7"` json:"username"里冒号后面的字段
+			name := fld.Tag.Get("json")
+			return name
+		})
 		zh := zh.New()
 		uni := ut.New(zh, zh)
 		trans, _ = uni.GetTranslator("zh")
@@ -101,4 +121,14 @@ func InitializaTrans() (err error) {
 		return
 	}
 	return
+}
+
+// 去掉返回值中的 RegisterForm ， 即去掉结构体名称
+func removeTopStruct(fields validator.ValidationErrorsTranslations) validator.ValidationErrorsTranslations {
+	r := make(validator.ValidationErrorsTranslations)
+	for f, v := range fields {
+		// 去掉 f 中的 RegisterForm
+		r[f[strings.Index(f, ".")+1:]] = v
+	}
+	return r
 }
