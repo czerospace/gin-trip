@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 	_ "github.com/go-sql-driver/mysql"
+	//_ "gorm.io/driver/mysql"
+	"time"
 )
 
 func main() {
@@ -17,6 +19,8 @@ func main() {
 		fmt.Println("connect to database failed...")
 		panic(err)
 	}
-
+	db.SetConnMaxLifetime(time.Minute * 3)
+	db.SetMaxOpenConns(10)
+	db.SetMaxIdleConns(10)
 	fmt.Println("connect to database success")
 }
